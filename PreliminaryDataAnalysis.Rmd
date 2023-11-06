@@ -1,0 +1,194 @@
+---
+title: "Preliminary Unemployment Visualizations"
+author: "John McCormick"
+date: "2023-11-07"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(sf)
+library(ggthemes)
+load("CombinedUnemploymentData.RData")
+```
+
+## Map showing unemployment in election years compared to national average
+
+```
+# Load spatial data for Ohio counties
+ohio_counties <- st_read("tl_2016_39_cousub.shp", options = "SHAPE_RESTORE_SHX=YES")
+
+# Define the election years of interest
+election_years <- seq(from = 2020, to = 1992, by = -4) 
+
+combinedData <- combinedData %>%
+  filter(Year %in% election_years)
+
+national_rates <- combinedData %>%
+  filter(County == "National") %>%
+  select(Label, rate = Value)
+
+# Now, join this national rate back to the combined data
+combinedData <- combinedData %>%
+  left_join(national_rates, by = c("Label" = "Label"))
+
+# Subtract the national rate from each county's rate
+combinedData <- combinedData %>%
+  mutate(relative_unemployment_rate = Value - rate)
+
+# Remove the national data if you no longer need it for the map
+combinedData <- combinedData %>%
+  filter(County != "National")
+
+# Merge the spatial data with the filtered unemployment data
+ohio_unemployment <- ohio_counties %>%
+  left_join(combinedData, by = c("NAME" = "County")) 
+
+# Plot the map with facets for election years
+ggplot(data = ohio_unemployment) +
+  geom_sf(aes(fill = relative_unemployment_rate, color = relative_unemployment_rate)) + 
+  facet_wrap(~Year) 
+  scale_fill_viridis_c(option = "C") + 
+  labs(fill = "Unemployment Compared to National Average") +
+  theme_minimal()
+```
+
+``` {r}
+
+combinedData <- combinedData %>%
+  mutate(Date = as.Date(paste0(Label, " 01"), format="%Y %b %d")) %>%
+  arrange(Date)
+
+national_data <- combinedData %>%
+  filter(County == "National") %>%
+  select(Date, NationalRate = Value)
+
+# Remove national data from the county data
+county_data <- combinedData %>%
+  filter(County != "National")
+
+# Join the national data with county data
+county_vs_national <- county_data %>%
+  left_join(national_data, by = "Date")
+
+events <- data.frame(
+  start = as.Date(c("1994-01-01", "1996-11-01", "2000-11-01", "2004-11-01", 
+                    "2008-11-01", "2012-11-01", "2016-11-01", "2020-11-01", "2020-07-01")),
+  end = as.Date(c("1994-01-31", "1996-11-30", "2000-11-30", "2004-11-30", 
+                  "2008-11-30", "2012-11-30", "2016-11-30", "2020-11-30", "2020-07-31"))
+)
+
+# Now create the plot
+ggplot(county_vs_national, aes(x = Date)) +
+  geom_line(aes(y = Value, group = County, color = "County Rate")) +
+  geom_line(aes(y = NationalRate, group = County, color = "National Rate")) +
+  geom_rect(data = events, aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf), 
+            fill = "#5F0A87", alpha = 0.2, inherit.aes = FALSE) +
+  facet_wrap(~ County) +
+  labs(title = "County vs National Unemployment Rate",
+       x = "Year",
+       y = "Unemployment Rate") +
+  scale_color_manual(values = c("County Rate" = "#2454FF", "National Rate" = "#ED2839")) +
+  theme(legend.position = "bottom")
+```
+
+```{r create-plots, echo=FALSE, message=FALSE, warning=FALSE}
+unique_counties <- unique(county_data$County)
+
+events <- data.frame(
+  start = as.Date(c("1994-01-01", "1996-11-01")),
+  end = as.Date(c("1994-01-31", "1996-11-30"))
+)
+
+for (county in unique_counties) {
+  # Filter data for the specific county and join with national data
+  county_specific_data <- county_data %>%
+    filter(County == county, Year < 2000) %>%
+    left_join(national_data, by = "Date")
+  
+  # Create the ggplot for the specific county
+  p <- ggplot(county_specific_data, aes(x = Date)) +
+    geom_line(aes(y = Value, color = "County Rate")) +
+    geom_line(aes(y = NationalRate, color = "National Rate")) +
+    geom_rect(data = events, aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf), 
+            fill = "#5F0A87", alpha = 0.2, inherit.aes = FALSE) +
+    labs(title = paste("Unemployment Rate in", county, "vs National 1990 - 1999"),
+         x = "Year",
+         y = "Unemployment Rate") +
+    scale_color_manual(values = c("County Rate" = "#2454FF", "National Rate" = "#ED2839")) +
+    theme_minimal()
+    theme(legend.position = "bottom")
+
+  # Print the plot
+  print(p)
+}
+```
+
+```{r}
+events <- data.frame(
+  start = as.Date(c( "2000-11-01", "2004-11-01", 
+                    "2008-11-01")),
+  end = as.Date(c( "2000-11-30", "2004-11-30", 
+                  "2008-11-30"))
+)
+for (county in unique_counties) {
+  # Filter data for the specific county and join with national data
+  county_specific_data <- county_data %>%
+    filter(County == county, Year < 2010 & Year > 1999) %>%
+    left_join(national_data, by = "Date")
+  
+  
+  
+  # Create the ggplot for the specific county
+  p <- ggplot(county_specific_data, aes(x = Date)) +
+    geom_line(aes(y = Value, color = "County Rate")) +
+    geom_line(aes(y = NationalRate, color = "National Rate")) +
+    geom_rect(data = events, aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf), 
+            fill = "#5F0A87", alpha = 0.2, inherit.aes = FALSE) +
+    labs(title = paste("Unemployment Rate in", county, "vs National 2000 - 2009"),
+         x = "Year",
+         y = "Unemployment Rate") +
+    scale_color_manual(values = c("County Rate" = "#2454FF", "National Rate" = "#ED2839")) +
+    theme_minimal()
+    theme(legend.position = "bottom")
+
+  # Print the plot
+  print(p)
+}
+```
+
+```{r}
+events <- data.frame(
+  start = as.Date(c("2012-11-01", "2016-11-01", "2020-11-01", "2020-07-01")),
+  end = as.Date(c("2012-11-30", "2016-11-30", "2020-11-30", "2020-07-31"))
+)
+
+for (county in unique_counties) {
+  # Filter data for the specific county and join with national data
+  county_specific_data <- county_data %>%
+    filter(County == county, Year > 2009) %>%
+    left_join(national_data, by = "Date")
+  
+  # Create the ggplot for the specific county
+  p <- ggplot(county_specific_data, aes(x = Date)) +
+    geom_line(aes(y = Value, color = "County Rate")) +
+    geom_line(aes(y = NationalRate, color = "National Rate")) +
+    geom_rect(data = events, aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf), 
+            fill = "#5F0A87", alpha = 0.2, inherit.aes = FALSE) +
+    labs(title = paste("Unemployment Rate in", county, "vs National 2009 - Present"),
+         x = "Year",
+         y = "Unemployment Rate") +
+    scale_color_manual(values = c("County Rate" = "#2454FF", "National Rate" = "#ED2839")) +
+    theme_minimal()
+    theme(legend.position = "bottom")
+
+  # Print the plot
+  print(p)
+}
+```
