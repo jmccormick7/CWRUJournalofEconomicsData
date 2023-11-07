@@ -20,7 +20,7 @@ load("CombinedUnemploymentData.RData")
 
 ## Map showing unemployment in election years compared to national average
 
-```
+``` {r}
 # Load spatial data for Ohio counties
 ohio_counties <- st_read("tl_2016_39_cousub.shp", options = "SHAPE_RESTORE_SHX=YES")
 
@@ -105,6 +105,7 @@ events <- data.frame(
   start = as.Date(c("1994-01-01", "1996-11-01")),
   end = as.Date(c("1994-01-31", "1996-11-30"))
 )
+
 
 for (county in unique_counties) {
   # Filter data for the specific county and join with national data
@@ -191,4 +192,54 @@ for (county in unique_counties) {
   # Print the plot
   print(p)
 }
+```
+
+## Political Leanings:
+```{r}
+load("Presidential Votes County 2000-2020.RData")
+
+
+
+ohioData <- data %>%
+  mutate(county_name = str_replace(county_name, " County", "")) %>%
+  filter(state_name == "Ohio", county_name %in% unique_counties) %>%
+  mutate(republicanPercent = votes_gop / total_votes) %>%
+  mutate(democratPercent = votes_dem / total_votes) %>%
+  mutate(repUpPoints = republicanPercent - democratPercent)
+
+for (county in unique_counties) {
+  # Filter data for the specific county
+  county_specific_data <- ohioData %>%
+    filter(county_name == county) %>%
+    # Generate a color based on the repUpPoints value
+    mutate(diff_color = case_when(
+      repUpPoints > 0.03 ~ "red",    # Republican lead greater than 3%
+      repUpPoints < -0.03 ~ "blue",  # Democratic lead greater than 3%
+      TRUE ~ "purple"                # Difference within +/- 3%
+    ),
+    # Create a label for the difference without the percentage sign
+    label = sprintf("%.1f%%", repUpPoints * 100))  # Adjust the format as needed
+
+  # Create the ggplot for the specific county
+  p <- ggplot(county_specific_data, aes(x = year)) +
+    geom_line(aes(y = republicanPercent), color = "#ED2839") +
+    geom_line(aes(y = democratPercent), color = "#1C39BB") +
+    geom_segment(aes(xend = year, y = republicanPercent, yend = democratPercent, color = diff_color), size = 1.2, linetype = "dotted") +
+    geom_text(aes(y = (republicanPercent + democratPercent) / 2, label = label, color = diff_color), vjust = -0.5, size = 3, hjust = -.2, check_overlap = TRUE) +
+    scale_color_manual(
+      values = c("red" = "#ED2839", "blue" = "#1C39BB", "purple" = "#8A2BE2"),
+      labels = c("Republican Advantage", "Democrat Advantage", "Swing State Margin"),
+      breaks = c("red", "blue", "purple")
+    ) +
+    labs(title = paste("Vote Share in", county, "County"),
+         color = "Party Share Difference") +
+    ylab("Percentage") +
+    xlab("Year") +
+    theme_minimal() +
+    scale_x_continuous(expand = expansion(mult = c(0.12, 0.12)))  # Add buffer to left and right
+
+  # Print the plot
+  print(p)
+}
+
 ```
