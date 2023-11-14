@@ -484,17 +484,19 @@ weighted_income <- incomeData %>%
     WeightedAverageIncome = TotalIncome / TotalPopulation,
     WeightedAverageIncomeThousands = WeightedAverageIncome / 1000,
     .groups = 'drop'  # Add this line to drop the grouping
-  ) %>%
-  mutate(Year = as.Date(paste0(Year, "-01-01")))
+  ) 
 
 weighted_income1 <- weighted_income %>%
-  filter(Year < 2000)
+  filter(Year < 2000) %>%
+  mutate(Year = as.Date(paste0(Year, "-01-01")))
 
 weighted_income2 <- weighted_income %>%
-  filter(Year >1999 & Year < 2010)
+  filter(Year >1999 & Year < 2010) %>%
+  mutate(Year = as.Date(paste0(Year, "-01-01")))
 
 weighted_income3 <- weighted_income %>%
-  filter(Year > 2009)
+  filter(Year > 2009) %>%
+  mutate(Year = as.Date(paste0(Year, "-01-01")))
 
 events <- data.frame(
   start = as.Date(c("1994-01-01", "1996-11-01")),
@@ -528,8 +530,8 @@ ggplot(weighted_income2, aes(x=Year, y=WeightedAverageIncomeThousands, color = S
 
 
 events <- data.frame(
-  start = as.Date(c("2012-11-01", "2016-11-01", "2020-11-01", "2020-07-01")),
-  end = as.Date(c("2012-11-30", "2016-11-30", "2020-11-30", "2020-07-31"))
+  start = as.Date(c("2012-11-01", "2016-11-01")),
+  end = as.Date(c("2012-11-30", "2016-11-30"))
 )
 
 
@@ -544,5 +546,23 @@ ggplot(weighted_income3, aes(x=Year, y=WeightedAverageIncomeThousands, color = S
     theme(legend.position = "bottom")
 
 
+stateClean <- state_vote_data %>%
+  mutate(State = case_when(state_name == "Michigan" ~ "MI",
+                           state_name == "Ohio" ~ "OH",
+                           state_name == "Minnesota" ~"MN"),
+         Year = as.character(year))
+
+weighted_incomeVote <- weighted_income %>%
+  filter(Year %in% c(2000, 2004, 2008, 2012, 2016, 2020))
+
+voting_income <- inner_join(weighted_incomeVote, stateClean, by = join_by(State == State, Year == Year))
+
+ggplot(voting_income, aes(WeightedAverageIncomeThousands, VoteDifference, color = State)) +
+  geom_line()+
+  labs(title = paste("Weighed Average Personal Income vs Voting Trends OH, MI, MN Suburban Counties 2010 - Present"),
+         x = "Weighted Average Personal Income (in Thousands $)",
+         y = "Republican Vote Share Advantage") +
+    theme_minimal() +
+    theme(legend.position = "bottom")
 
 ```
